@@ -641,12 +641,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Hardcoded credentials
-VALID_USERNAME = "matchday_wizard"
-VALID_PASSWORD = "GoalMaster"
+VALID_USERNAME = "nihar"
+VALID_PASSWORD = "nihar1234"
 
 # Additional user
-VALID_USERNAME_2 = "fottyy_pro"
-VALID_PASSWORD_2 = "BetMaster123"
+VALID_USERNAME_2 = "shiv0000"
+VALID_PASSWORD_2 = "Shiv0518"
 
 # Initialize session state
 if 'logged_in' not in st.session_state:
