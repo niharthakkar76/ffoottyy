@@ -13,6 +13,12 @@ on:
   schedule:
     - cron: '0 */6 * * *'
 
+# Environment variables
+env:
+  # Default credentials (can be overridden by GitHub Secrets)
+  FOTTYY_USERNAME: ${{ secrets.FOTTYY_USERNAME || 'nihar' }}
+  FOTTYY_PASSWORD: ${{ secrets.FOTTYY_PASSWORD || 'nihar1234' }}
+
 jobs:
   login:
     runs-on: ubuntu-latest
@@ -23,37 +29,75 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      - name: Install Python dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libnss3 \
+            libnspr4 \
+            libatk1.0-0 \
+            libatk-bridge2.0-0 \
+            libcups2 \
+            libdrm2 \
+            libxkbcommon0 \
+            libxcomposite1 \
+            libxdamage1 \
+            libxfixes3 \
+            libxrandr2 \
+            libgbm1 \
+            libasound2 \
+            libatspi2.0-0 \
+            libxshmfence1 \
+            libx11-xcb1
+            
+      - name: Upgrade pip and install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           
-      - name: Install Playwright browsers
+      - name: Install Playwright
         run: |
-          # Install Playwright Python package
           pip install playwright
-          # Install browsers with the correct user permissions
-          python -m playwright install --with-deps
+          # Install browsers with dependencies
+          python -m playwright install --with-deps chromium
+          python -m playwright install-deps
       
-      # Fix for running in container
-      - name: Setup user for browser
-        run: |
-          # Create a new user to run the browser
-          groupadd -r pwuser && useradd -r -g pwuser -G audio,video pwuser
-          mkdir -p /home/pwuser
-          chown -R pwuser:pwuser /home/pwuser
-          # Make the project directory accessible to pwuser
-          chown -R pwuser:pwuser .
-          
       - name: Run login script
         run: |
-          # Run the script directly since we're already in a container
-          python login_script.py
+          # Set display for headless mode
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1024x768x16 > /dev/null 2>&1 &
           
-          # Keep the container alive for a while to ensure logs are captured
-          echo "Script execution completed. Waiting for logs to be captured..."
-          sleep 10
+          # Run the script with retry logic
+          max_retries=3
+          attempt=1
+          success=false
+          
+          while [ $attempt -le $max_retries ] && [ "$success" = false ]; do
+            echo "Attempt $attempt of $max_retries..."
+            if python login_script.py; then
+              success=true
+              echo "Script completed successfully on attempt $attempt"
+            else
+              echo "Attempt $attempt failed. Retrying..."
+              ((attempt++))
+              sleep 10  # Wait before retry
+            fi
+          done
+          
+          if [ "$success" = false ]; then
+            echo "Script failed after $max_retries attempts"
+            exit 1
+          fi
         timeout-minutes: 20
+        env:
+          FOTTYY_USERNAME: ${{ env.FOTTYY_USERNAME }}
+          FOTTYY_PASSWORD: ${{ env.FOTTYY_PASSWORD }}
         
       - name: Upload logs
         if: always()
@@ -63,4 +107,7 @@ jobs:
           path: |
             *.log
             *.txt
+            playwright-report/
           retention-days: 3
+          if-no-files-found: warn
+
