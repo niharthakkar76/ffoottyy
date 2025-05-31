@@ -1,6 +1,7 @@
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
 import time
 import sys
+import os
 
 def log_message(message):
     """Helper function to log messages with timestamp"""
@@ -8,32 +9,50 @@ def log_message(message):
     print(f"[{timestamp}] {message}")
 
 def login_and_wait():
-    # Hardcoded credentials
-    USERNAME = "nihar"
-    PASSWORD = "nihar1234"
+    # Get credentials from environment variables or use defaults
+    USERNAME = os.environ.get('FOTTYY_USERNAME', 'nihar')
+    PASSWORD = os.environ.get('FOTTYY_PASSWORD', 'nihar1234')
 
 
     
     with sync_playwright() as p:
+        browser = None
         try:
-            # Launch browser in headless mode for CI/CD
+            # Launch browser in headless mode for CI/CD with more stable settings
             log_message("Launching browser in headless mode...")
             browser = p.chromium.launch(
-                headless=True,  # Run in headless mode for CI/CD
-                args=['--no-sandbox', '--disable-dev-shm-usage'],  # Add these flags for better stability in CI
-                slow_mo=100  # Slow down operations by 100ms to make them more reliable
+                headless=True,
+                args=[
+                    '--no-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--disable-software-rasterizer',
+                    '--disable-setuid-sandbox',
+                    '--disable-web-security',
+                    '--disable-features=IsolateOrigins,site-per-process',
+                    '--disable-site-isolation-trials'
+                ],
+                slow_mo=200  # Increased from 100ms to 200ms for more reliability
             )
             context = browser.new_context(viewport={'width': 1280, 'height': 800})
             page = context.new_page()
             
-            # Navigate to the login page
-            log_message("Navigating to login page...")
-            try:
-                page.goto("https://fottyygit.streamlit.app/?page=login", timeout=60000)
-                log_message("Page loaded successfully")
-            except PlaywrightTimeoutError:
-                log_message("Timeout while loading the page")
-                raise
+            # Navigate to the login page with retry logic
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    log_message(f"Navigation attempt {attempt + 1}/{max_retries}")
+                    page.goto("https://fottyygit.streamlit.app/?page=login", 
+                              timeout=90000,  # Increased timeout to 90 seconds
+                              wait_until="domcontentloaded")
+                    log_message(f"Page loaded successfully after {page.evaluate('window.performance.timing.loadEventEnd - window.performance.timing.navigationStart')}ms")
+                    break
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        log_message(f"Failed to load page after {max_retries} attempts: {str(e)}")
+                        raise
+                    log_message(f"Attempt {attempt + 1} failed: {str(e)}. Retrying...")
+                    time.sleep(5)  # Wait before retry
                 
             log_message("Page loaded successfully")
             
@@ -133,11 +152,15 @@ def login_and_wait():
             
         finally:
             # Close the browser
-            try:
-                log_message("Closing browser...")
-                browser.close()
-            except Exception as e:
-                log_message(f"Error while closing browser: {str(e)}")
+            if browser:
+                try:
+                    log_message("Closing browser...")
+                    browser.close()
+                    log_message("Browser closed successfully")
+                except Exception as e:
+                    log_message(f"Error while closing browser: {str(e)}")
+            else:
+                log_message("No browser instance to close")
 
 if __name__ == "__main__":
     log_message("Script started")
