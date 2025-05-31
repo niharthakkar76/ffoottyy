@@ -58,3 +58,4 @@ jobs:
             *.log
             *.txt
           retention-days: 3
+
