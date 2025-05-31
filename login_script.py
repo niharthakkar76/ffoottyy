@@ -42,7 +42,7 @@ def login_and_wait():
             for attempt in range(max_retries):
                 try:
                     log_message(f"Navigation attempt {attempt + 1}/{max_retries}")
-                    page.goto("https://fottyygit.streamlit.app/?page=login", 
+                    page.goto("https://fuuttyy.streamlit.app/?page=login", 
                               timeout=90000,  # Increased timeout to 90 seconds
                               wait_until="domcontentloaded")
                     log_message(f"Page loaded successfully after {page.evaluate('window.performance.timing.loadEventEnd - window.performance.timing.navigationStart')}ms")
